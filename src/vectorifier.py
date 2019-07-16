@@ -74,6 +74,11 @@ class Vectorifier:
       return final_df.sum(axis=0) / n_tokens
     else:
       return pd.DataFrame()
+    
+  
+  def vectorize_word(self, word):
+    vector = self.__vectorize(self.__word_vectors_df, word)
+    return vector
   
   
   """

@@ -13,12 +13,14 @@ CSV_PATH = BASEDIR + "data/csv/"
 CSV_GLOVE_PATH = CSV_PATH + "glove/"
 CSV_ST_CONCEPT_NAMES_GLOVE_PATH = CSV_GLOVE_PATH + "symptom_tree/concept_names/"
 CSV_ST_WORDS_GLOVE_PATH = CSV_GLOVE_PATH + "symptom_tree/words/"
-
+CSV_BODY_PARTS_FILE = BASEDIR + "data/csv/hot_words/body_parts.csv"
 CSV_ST_MEDICAL_WORDS_GLOVE_PATH = CSV_GLOVE_PATH + "symptom_tree/medical_words/"
 CSV_ST_MEDICAL_TERMS_FILE = CSV_PATH + "symptom_tree/medical_terms.csv"
 
 TXT_PATH = BASEDIR + "data/txt/"
 TXT_GLOVE_PATH = TXT_PATH + "glove/"
+
+JSON_FILE_QUESTIONS_QA = BASEDIR + "data/json/qa_questions.json"
 
 DATASET_CV_FOLDER = BASEDIR + "dataset/cross_validation/"
 DATASET_TRAINING_FOLDER = BASEDIR + "dataset/testing/"

@@ -16,7 +16,7 @@ class DatasetLoader:
     paths_testing = list(map(lambda s: (COM.DATASET_TRAINING_FOLDER + s, os.path.splitext(s)[0]),
                              os.listdir(COM.DATASET_TRAINING_FOLDER)))
     
-    self.sentences_cv = []
+    self.__sentences_cv = []
     for (path, filename) in paths_cv:
       with open(path) as fp:  
         line = fp.readline()
@@ -28,7 +28,7 @@ class DatasetLoader:
           # ---
           line = fp.readline()
     
-    self.sentences_testing = []
+    self.__sentences_testing = []
     for (path, filename) in paths_testing:
       with open(path) as fp:  
         line = fp.readline()
@@ -66,3 +66,17 @@ class DatasetLoader:
         ret += fragment[2]
     
     return ret
+  
+  """
+  Get cross validation sentences and namefiles
+  """
+  def get_cv_sentences(self):
+    return self.__sentences_cv
+  
+  
+  """
+  Get cross validation sentences and namefiles
+  """
+  def get_testing_sentences(self):
+    return self.__sentences_testing
+  

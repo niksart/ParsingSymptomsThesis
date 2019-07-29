@@ -9,7 +9,7 @@ class Vectorifier:
   """
   Vectorifier converts a sentence into an internal representation (glove, bert).
   
-  internal_representation: can be "glove" or "bert"
+  internal_representation: can be "glove"
   
   GloVe parameters --
     number_glove_words: take the first n words from GloVe dictionary (they are ordered by frequency)
@@ -41,13 +41,18 @@ class Vectorifier:
                                               str(self.d)+"d.csv",
                                               header=None)
       
-      self.__word_vectors_df = pd.read_csv(COM.TXT_GLOVE_PATH + \
+      self.word_vectors_df = pd.read_csv(COM.TXT_GLOVE_PATH + \
                                            "glove.6B." + str(self.d) + "d.txt",
                                            sep=" ",
                                            engine="python",
                                            nrows=number_glove_words,
                                            quoting=3,
                                            header=None)
+  
+  
+  def save_csv_glove_words(self):
+    l = self.word_vectors_df[0]
+    l.to_csv(COM.CSV_WORD_LIST_GLOVE_40000, index=None)
   
   
   """

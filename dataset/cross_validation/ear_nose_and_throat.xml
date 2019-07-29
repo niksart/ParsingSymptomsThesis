@@ -45,7 +45,7 @@
 <sentence>I have had a <symptom CUI="C0010200"><symptom CUI="C0850149">dry persistent cough</symptom></symptom> for going on 8 months now.</sentence>
 <sentence>I went to my doctor about a week ago because of <symptom CUI="C0220870">lightheadedness</symptom>, <symptom CUI="C0012833">dizziness</symptom>, <symptom CUI="C0018681">headache</symptom>, and <symptom CUI="C0850674">eye twitching</symptom>.</sentence>
 <sentence>My biggest problem now is <symptom CUI="C0516979">fatigue</symptom>, almost as if my head is so heavy.</sentence>
-<sentence>I have a <symptom CUI="C0010200"><symptom CUI="C0850149">dry persistent cough</symptom></symptom>  only in the morning for 5 to 10 min.</sentence>
+<sentence>I have a <symptom CUI="C0010200">dry persistent cough</symptom>  only in the morning for 5 to 10 min.</sentence>
 <sentence>Several times a year I have a <symptom CUI="C2019022">spot in the rear of my mouth</symptom> that gets very sore.</sentence>
 <sentence>I started getting <symptom CUI="C0007859">sharp stabbing pains in my neck</symptom>.</sentence>
 <sentence>Shortly afterwards the <symptom CUI="C2039120">glands in my neck became swollen</symptom> and I had frequent <symptom CUI="C0242429">sore throats</symptom> and <symptom CUI="C0516979">fatigue</symptom>.</sentence>

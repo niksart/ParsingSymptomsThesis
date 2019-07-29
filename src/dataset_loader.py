@@ -24,7 +24,7 @@ class DatasetLoader:
           # interpreta XML
           root = ET.fromstring(line)
           sentence = list(self.__get_sentence_given_xml_root(root))
-          self.sentences_cv.append((sentence, filename))
+          self.__sentences_cv.append((sentence, filename))
           # ---
           line = fp.readline()
     
@@ -36,7 +36,7 @@ class DatasetLoader:
           # interpreta XML
           root = ET.fromstring(line)
           sentence = list(self.__get_sentence_given_xml_root(root))
-          self.sentences_testing.append((sentence, filename))
+          self.__sentences_testing.append((sentence, filename))
           # ---
           line = fp.readline()
     
@@ -61,11 +61,12 @@ class DatasetLoader:
     
     for fragment in sentence:
       if fragment[0] == "text":
-        ret += fragment[1]
+        ret += fragment[1] if fragment[1] != None else ""
       elif fragment[0] == "symptom":
-        ret += fragment[2]
+        ret += fragment[2] if fragment[2] != None else ""
     
     return ret
+  
   
   """
   Get cross validation sentences and namefiles

@@ -1,10 +1,10 @@
 import stanfordnlp
+from stemming.porter2 import stem
+import pandas as pd
 import commons as COM
 import os
 
 class SentencePOSTagger:
-  
-  possessive_verbs = ["have"]
   
   
   def __init__(self):
@@ -12,6 +12,9 @@ class SentencePOSTagger:
       stanfordnlp.download('en', force = True, resource_dir = COM.STANFORD_NLP_RESOURCES_PATH)
     
     self.nlp = stanfordnlp.Pipeline(models_dir = COM.STANFORD_NLP_RESOURCES_PATH)
+    
+    glove_40000_word_list_df = pd.read_csv(COM.CSV_WORD_LIST_GLOVE_40000, header=None)
+    self.__list_glove_words = glove_40000_word_list_df[0].tolist()
   
   
   """
@@ -21,25 +24,51 @@ class SentencePOSTagger:
     doc = self.nlp(sentence_text)
     return doc.sentences[0]
   
+  
   """
-  def interpret_possession(self, sentence):
-    deps_possession = ["root", "conj"]
+  Keep only the words whose type is in this list (referring to UPOS classification):
+  
+    - NOUN nouns
+    - ADJ adjectives
+    - CCONJ coordinating conjunctions
+    - PUNCT punctuation
+    - VERB verbs
+    - AUX auxiliaries
+  """
+  def filter_unuseful_words(self, 
+                            sentence_text,
+                            admitted_types = ["NOUN", "ADJ", "CCONJ", "PUNCT", "VERB", "AUX"]):
+    sentence = self.parse_sentence(sentence_text)
     
-    for token in sentence.tokens:
-      for word in token.words:
-        if word.dependency_relation in deps_possession \
-        and word.lemma in possessive_verbs:
-  """
+    res = ""
+    for word in sentence.words:
+      if word.upos in admitted_types:
+        res += word.text
+        if word != sentence.words[-1]:
+          res += " "
+    
+    return res
   
   
   """
-  Given a Token, it returns if the token is the negation adverb
+  Given a string containing a sentence,
+  returns a string (the stemmed sentence)
   """
-  def is_negation(self, token):
-    if len(token.words) != 1:
-      return False
+  def stem_sentence(self, sentence_text):
+    sentence = self.parse_sentence(sentence_text)
     
-    lemma_is_not = token.words[0].lemma == "not"
-    dependency_is_advmod = token.words[0].dependency_relation == "advmod"
+    res = ""
+    for word in sentence.words:
+      stemmed_word = stem(word.text)
+      
+      if stemmed_word in self.__list_glove_words:
+        res += stemmed_word
+      else:
+        res += word.text
+      
+      if word != sentence.words[-1]:
+        res += " "
     
-    return lemma_is_not and dependency_is_advmod
+    return res
+  
+  

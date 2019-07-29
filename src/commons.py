@@ -11,6 +11,7 @@ JSON_SYMPTOM_TREE_PATH = BASEDIR + "data/json/symptom_tree.json"
 
 CSV_PATH = BASEDIR + "data/csv/"
 CSV_GLOVE_PATH = CSV_PATH + "glove/"
+CSV_WORD_LIST_GLOVE_40000 = CSV_GLOVE_PATH + "40000_word_list.csv"
 CSV_ST_CONCEPT_NAMES_GLOVE_PATH = CSV_GLOVE_PATH + "symptom_tree/concept_names/"
 CSV_ST_WORDS_GLOVE_PATH = CSV_GLOVE_PATH + "symptom_tree/words/"
 CSV_BODY_PARTS_FILE = BASEDIR + "data/csv/hot_words/body_parts.csv"

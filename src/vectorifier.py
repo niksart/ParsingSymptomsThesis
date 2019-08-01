@@ -1,13 +1,14 @@
 import pandas as pd
 import commons as COM
 import itertools
+from sentence_pos_tagger import SentencePOSTagger
 
 
 class Vectorifier:
 
   
   """
-  Vectorifier converts a sentence into an internal representation (glove, bert).
+  Vectorifier converts a sentence into an internal representation (glove).
   
   internal_representation: can be "glove"
   
@@ -36,28 +37,30 @@ class Vectorifier:
       
       self.d = dimension_glove_vectors
       
+      """
       # some words of the concept names are not in the first 40000 words of glove dictionary
       self.__ST_word_vectors_df = pd.read_csv(COM.CSV_ST_WORDS_GLOVE_PATH + \
                                               str(self.d)+"d.csv",
                                               header=None)
+      """
+    
       
-      self.word_vectors_df = pd.read_csv(COM.TXT_GLOVE_PATH + \
+      self.__word_vectors_df = pd.read_csv(COM.TXT_GLOVE_PATH + \
                                            "glove.6B." + str(self.d) + "d.txt",
                                            sep=" ",
                                            engine="python",
                                            nrows=number_glove_words,
                                            quoting=3,
                                            header=None)
-  
-  
-  def save_csv_glove_words(self):
-    l = self.word_vectors_df[0]
-    l.to_csv(COM.CSV_WORD_LIST_GLOVE_40000, index=None)
+      
+      self.__spt = SentencePOSTagger()
   
   
   """
   Given a sentence and a knowledge base (mapping word => vector),
   calculate the mean vector between the vectorified words
+
+  If the concept name contains a word that is not in the dictionary, return an empty DataFrame
   
   kb: column 0 => word
       columns [1, dim + 1] => values of the vector
@@ -71,7 +74,9 @@ class Vectorifier:
     for token in tokens:
       token_df = kb[kb[0].isin([token])]  
       if not token_df.empty:
-        n_tokens = n_tokens + 1    
+        n_tokens = n_tokens + 1
+      else:
+        return pd.DataFrame() 
       final_df = final_df.append(token_df)
     
     if not final_df.empty:
@@ -81,7 +86,10 @@ class Vectorifier:
       return pd.DataFrame()
     
   
-  def vectorize_word(self, word):
+  def vectorize_word(self, word, stemming=True):
+    if stemming:
+      word = self.__spt.stem_sentence(word)
+      
     vector = self.__vectorize(self.__word_vectors_df, word)
     return vector
   
@@ -89,19 +97,26 @@ class Vectorifier:
   """
   Given a concept name returns a generic vector representing it
   """
-  def vectorize_concept_name(self, concept_name):
+  def vectorize_concept_name(self,
+                             concept_name,
+                             stemming=True):
     # concept_name is stripped yet by get_concept_name
-    return self.__vectorize(self.__ST_word_vectors_df, concept_name)
+    
+    print("Vectorizing concept name: " + concept_name)
+    
+    # stem the concept name
+    if stemming:
+      concept_name = self.__spt.stem_sentence(concept_name)
+    # ---
+    
+    return self.__vectorize(self.__word_vectors_df, concept_name)
   
   
   """
-  Given a patient sentence:
-    - preprocess it (leave out characters that are not alpha, prepositions and particles)
-    - return for each subsentence a tuple (subsentence, subsentence vectorified)
+  Given a sentence,
+    return for each subsentence a tuple (subsentence, subsentence vectorified)
   """
   def get_subsentences_and_vectors(self, sentence):
-    #preprocess the sentence
-    sentence = self.__preprocess(sentence)
     
     words_set = set(sentence.split(" "))
     subsentence_list = self.__subsentences(words_set)
@@ -118,14 +133,9 @@ class Vectorifier:
     return ret1
   
   
-  # This is the preprocessing of the entire sentence of the patient
-  def __preprocess(self, sentence):
-    return COM.strip_string(sentence)
-  
-  
   def __subsentences(self, word_set):
     subsets_of_words = self.__subsets(word_set)
-    return list(map(self.stringify_tuple, subsets_of_words))
+    return list(map(self.__stringify_tuple, subsets_of_words))
   
   
   # S is the set, m the number 
@@ -136,9 +146,12 @@ class Vectorifier:
       final_set = final_set.union(s)
     return final_set
   
+  
   # given a tuple of strings, return a mono string
-  def stringify_tuple(self, t):
+  def __stringify_tuple(self, t):
     s = ""
     for string in t:
         s = s + string + " "
     return s
+  
+  

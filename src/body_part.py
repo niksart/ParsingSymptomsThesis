@@ -26,6 +26,7 @@ class BodyPart:
       self.is_external = False if args_list[3] == 0 else True
       self.not_specifically_located = False if args_list[4] == 0 else True
       self.one_word = False if args[5] == 0 else True
+      self.root_nodes = self.__get_root_nodes_given_id(self.id_bp)
     elif len(args_list) == 1:
       id_bp = args_list[0]
       self.__initialize_fields_given_id(id_bp)
@@ -36,6 +37,14 @@ class BodyPart:
   
   def __get_list_of_names(self, names_text):
     return names_text.split("/")
+  
+  
+  def __get_root_nodes_given_id(self, bp_id):
+    df = pd.read_csv(COM.CSV_ST_BODY_PARTS_TAGGING_PATH, sep="|")
+    df = df[df["id_body_part"] == bp_id]
+    list_concept_names_root_nodes = df["concept_name"].tolist()
+    
+    return list_concept_names_root_nodes
   
   
   def __initialize_fields_given_id(self, id_bp):
@@ -50,3 +59,4 @@ class BodyPart:
         self.is_external = False if row["IS_EXTERNAL"] == 0 else True
         self.not_specifically_located = False if row["NOT_SPECIFICALLY_LOCATED"] == 0 else True
         self.one_word = False if row["ONE_WORD"] == 0 else True
+        self.root_nodes = self.__get_root_nodes_given_id(self.id_bp)

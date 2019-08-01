@@ -10,9 +10,6 @@ from anytree.importer import JsonImporter
 fh = open(COM.JSON_SYMPTOM_TREE_PATH, "r")
 symptom_json = fh.read()
 
-SPEC = "specialization"
-BASE = "base_concept"
-
 
 class Node(at.node.node.Node):
   # concept_name identifies univoquely the node
@@ -31,7 +28,7 @@ class Node(at.node.node.Node):
 class SymptomTree:
   
   """
-  internal_representation: can be "glove" or "bert"
+  internal_representation: can be "glove"
   
   GloVe parameters --
     number_glove_words: take the first n words from GloVe dictionary (they are ordered by frequency)
@@ -50,23 +47,23 @@ class SymptomTree:
     dict_importer = DictImporter(nodecls=Node)
     importer = JsonImporter(dictimporter=dict_importer)
     self.root = importer.import_(symptom_json)
-    self.__mark_specializations(self.root)
-    self.__mark_base_concepts(self.root)
     
     self.dimension_glove_vectors = dimension_glove_vectors
     self.vectorifier = Vectorifier(internal_representation,
-                                        number_glove_words,
-                                        dimension_glove_vectors)
+                                   number_glove_words,
+                                   dimension_glove_vectors)
     
     # if concept name vectors file not exists, create it
     # this file contains the glove vectors of the concept names
     if not os.path.isfile(COM.CSV_ST_CONCEPT_NAMES_GLOVE_PATH + \
                           str(self.dimension_glove_vectors) + "d.csv"):
+      print("Concept names vector file not found. \nComputing file...")
       self.__save_csv_concept_name_vectors()
     
     self.concept_name_vectors_df = pd.read_csv(COM.CSV_ST_CONCEPT_NAMES_GLOVE_PATH + \
                                                str(self.dimension_glove_vectors) + "d.csv", 
                                                header=None)
+    
     
 
   """
@@ -89,6 +86,7 @@ class SymptomTree:
     if not parent_vector.empty:
       df = pd.DataFrame(parent_vector).T
       df.insert(0, "concept_name", parent.get_concept_name())
+      df.insert(1, "cui", parent.name)
     else:
       df = pd.DataFrame()
     
@@ -98,18 +96,59 @@ class SymptomTree:
     return df
   
   
-  """
-  Given a sentence of the patient, calculate the subsentences and get a 
-  list of tuples like this: 
-  
-    ('subsentence', 'most similar concept name', 0.89)
-  
-  """
-  def get_most_similar_concept_name_given_sentence(self, sentence):
-    subsentences = self.vectorifier.get_subsentences_and_vectors(sentence)
     
-    return self.__get_most_similar_concept_name_given_subsentences(subsentences,
-                                                                   self.concept_name_vectors_df)
+  def get_most_similar_cui_given_body_part_token(self,
+                                                 token,
+                                                 body_part,
+                                                 min_similarity=0):
+    
+    return self.__get_most_similar_cui_given_token(token,
+                                                   min_similarity,
+                                                   body_part)
+
+
+  def get_most_similar_cui_given_symptom_token(self,
+                                               token,
+                                               min_similarity=0):
+    
+    return self.__get_most_similar_cui_given_token(token, min_similarity)
+
+  
+  """
+  Given a token from the Answer Interpreter, calculate the subsentences within it
+  (all the possible subsets of the token) and get a list of tuples like this:
+  
+    ('cui', 0.89)
+    number cui, similarity
+    
+  If min_similarity is passed, a tuple is produced only if the best match has
+  the similarity > min_similarity. Otherwise, it returns None.
+  
+  If body_part is passed then search only in the symptoms related to that body part
+  """
+  def __get_most_similar_cui_given_token(self,
+                                         token,
+                                         min_similarity=0,
+                                         body_part=None):
+    subsentences = self.vectorifier.get_subsentences_and_vectors(token)
+    
+    if body_part is None:
+      concept_names_vectors = self.concept_name_vectors_df
+    else:
+      concept_names_vectors = self.__get_concept_names_vectors_related_to_body_part(body_part)
+    
+    symptoms_df = self.__get_most_similar_symptoms_given_subsentences(subsentences,
+                                                                      concept_names_vectors)
+    
+    symptoms_df = symptoms_df.sort_values("similarity", ascending=False)
+    
+    _, cui = symptoms_df.iloc[0][1]
+    simil = symptoms_df.iloc[0][2]
+    
+    if simil > min_similarity:
+      return (cui, simil)
+    else:
+      return None
   
   
   """
@@ -121,10 +160,13 @@ class SymptomTree:
     - concept_names: dataframe representing concept names and their vector representations
   
   Returns:
-    a list of tuples ('subsentence', 'most similar concept name', 0.89)
-      => the number of tuples is equal to the number of subsentences
+    a pandas DataFrame with columns:
+      - subsentence
+      - tuple_symptom : ('concept name', CUI)
+      - similarity
+      => the number of rows is equal to the number of subsentences
   """
-  def __get_most_similar_concept_name_given_subsentences(self,
+  def __get_most_similar_symptoms_given_subsentences(self,
                                                        subsentences,
                                                        concept_names):
     # Matrix that has the vectors of subsentences on rows
@@ -139,14 +181,18 @@ class SymptomTree:
     
     # Matrix that has the vectors of concept names on rows
     # shape of B is #concept_names x #dimensions_inter_repr
-    B = np.array(concept_names.iloc[:, 1:(self.dimension_glove_vectors+1)])
+    B = np.array(concept_names.iloc[:, 2:(self.dimension_glove_vectors+2)])
     dictB = {}
     list_concept_names = concept_names[0].tolist()
+    list_cuis = concept_names[1].tolist()
+    
+    indexes = list(zip(list_concept_names, list_cuis))
+    
     i = 0
-    for concept_name in list_concept_names:
-      dictB[i] = concept_name
+    for concept_name, cui in indexes:
+      dictB[i] = (concept_name, cui)
       i += 1
-      
+    
     similarity_matrix = COM.similarity_matrices(A, B)
     
     indexes_max_rows = similarity_matrix.argmax(axis=1)
@@ -159,7 +205,20 @@ class SymptomTree:
                   similarity_matrix[i_subsentence][i_concept_name]))
       i_subsentence += 1
     
-    return ret
+    return pd.DataFrame(ret, columns=["subsentence", "tuple_symptom", "similarity"])
+  
+  
+  def __get_concept_names_vectors_related_to_body_part(self, body_part):
+    list_root_nodes = body_part.root_nodes
+    root_nodes = list(map(self.__get_node_by_concept_name, list_root_nodes))
+    
+    list_filtered_concept_names = []
+    for root_node in root_nodes:
+      l = self.__get_concept_names_of_subtree(root_node)
+      list_filtered_concept_names += l
+    
+    selector = self.concept_name_vectors_df[0].isin(list_filtered_concept_names)
+    return self.concept_name_vectors_df[selector]
   
       
   """
@@ -168,169 +227,19 @@ class SymptomTree:
   
   """
   
-  def get_node_by_concept_name(self, concept_name):
+  def __get_node_by_concept_name(self, concept_name):
     return at.find(self.root, filter_=lambda node: node.get_concept_name()==concept_name)
+  
+  
+  def __get_concept_names_of_subtree(self, node):
+    concept_names = [node.concept_name]
+    
+    for child in node.children:
+      concept_names += self.__get_concept_names_of_subtree(child)
+    
+    return concept_names
   
   
   def render_tree(self, root):
       return str(at.RenderTree(root, style=at.ContStyle()))
     
-  
-  def count_nodes(self, parent, type_nodes=""):    
-    counter = 0
-    if type_nodes == "" or (hasattr(parent, "type") and parent.type == type_nodes):
-      counter = 1
-    
-    for child in parent.children:
-      counter += self.count_nodes(child, type_nodes)
-    
-    return counter
-  
-  
-  # true if the two strings has at least a word in common
-  def __have_words_in_common(self, s1, s2):
-    # these words do not cause intersection
-    words_of_no_intersection = set(["symptoms"])
-    
-    set_s1 = set(s1.lower().split())
-    set_s2 = set(s2.lower().split())
-    
-    return (set_s1.intersection(set_s2) - words_of_no_intersection) != set()
-  
-  
-  """
-  
-  ------------ TAGGING NODES ------------
-  
-  """
-  
-  """
-  1 - mark specialization
-  
-  Given a tree rooted in `root`, if a node has a concept name that has at 
-  least a word in common with an ancestor, and that ancestor does not contain
-  inside the name the word `symptoms`:
-    ADD an attribute named `type` equal to SPEC (that node is a specialization)
-    ADD an attribute `specialization_of` that points to that ancestor 
-  """
-  def __mark_specializations(self, parent):
-    # consider the ancestors starting from the father
-    for ancestor in parent.ancestors[::-1]:
-       # if a word in common AND ancestor does not contain the word `symptoms`
-      if self.__have_words_in_common(parent.get_concept_name(), ancestor.get_concept_name()) \
-      and (ancestor.get_concept_name().find("symptoms") ==  -1):
-        parent.type = SPEC
-        parent.specialization_of = ancestor
-        break
-    
-    for child in parent.children:
-      self.__mark_specializations(child)
-  
-  
-  """
-  2 - mark the base concepts. A base concept is behind the front of specializations
-  
-  DFS, when you find a specialization, stop the recursion over the children
-  """
-  def __mark_base_concepts(self, parent):
-    if not hasattr(parent, "type"):
-      parent.type = BASE
-      for child in parent.children:
-        self.__mark_base_concepts(child)
-  
-  
-  """
-  
-  ------------ LCS within the specialization tree ------------
-  
-  To prove the meaningfulness of specializations:
-  - find the longest common substring within the tree rooted in the first
-    specialization
-  - look at percentages of presence of this lcs
-  
-  (maybe lcs is not the best measure)
-  """
-  
-  
-  """
-  Given a tree rooted in parent, returns a list with the concept names of the nodes
-  
-  The list returned is the input for the __lcs function
-  """
-  def __concept_names_by_root(self, parent):
-    ret = [parent.get_concept_name()]
-    
-    for child in parent.children:
-      ret = ret + self.__concept_names_by_root(child)
-    
-    return ret
-  
-
-  """
-  Longest common substring
-  data: list of strings
-  
-  https://stackoverflow.com/questions/2892931/longest-common-substring-from-more-than-two-strings-python
-  """
-  def __lcs(self, data):
-    substr = ''
-    if len(data) > 1 and len(data[0]) > 0:
-      for i in range(len(data[0])):
-        for j in range(len(data[0])-i+1):
-          if j > len(substr) and all(data[0][i:i+j] in x for x in data):
-            substr = data[0][i:i+j]
-    return substr
-  
-  
-  """
-  Counts how many nodes of the tree rooted in parent have the string `s` in 
-  their name_concept
-  """
-  def __count_string_in_name_concepts(self, s, parent):
-    occurrence = not parent.get_concept_name().find(s) == -1
-    
-    if parent.is_leaf:
-      if occurrence:
-        return 1
-      else:
-        return 0
-    
-    for child in parent.children:
-      if occurrence:
-        return 1 + self.__count_string_in_name_concepts(s, child)
-      else:
-        return self.__count_string_in_name_concepts(s, child)
-      
-  
-  """
-  Find the lcs in the subtree pointed by `root` and calculate the percentage of
-  occurrence on the nodes
-  """
-  def find_lcs_given_root(self, root):
-    lcs = self.__lcs(self.__concept_names_by_root(root))    
-    percentage = self.__count_string_in_name_concepts(lcs, root) / self.count_nodes(root) * 100
-    
-    return (root, lcs, str(self.__count_string_in_name_concepts(lcs, root)) + " / " + str(self.count_nodes(root)), percentage)
-  
-  """
-  Find the set of nodes that are the `specialization_of` of the first 
-  specialization nodes (the front of specializations).
-  They are the last base concepts and are always ancestors of specializations
-  """
-  def find_roots_of_specializations(self, root):
-    front_concept_names = self.__find_roots_of_specializations_rec(root)
-    front_nodes_set = map(self.get_node_by_concept_name, front_concept_names)
-    return tuple(front_nodes_set)
-  
-  
-  def __find_roots_of_specializations_rec(self, parent):
-    front_concept_names = set()
-    
-    if hasattr(parent, "type") and parent.type == SPEC:
-      return { parent.specialization_of.get_concept_name() }
-    
-    for child in parent.children:
-      front_concept_names = front_concept_names.union(self.__find_roots_of_specializations_rec(child))
-    
-    return front_concept_names
-  

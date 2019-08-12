@@ -5,7 +5,6 @@ import json
 # Question tags
 GENERAL = "general"
 BODY_PARTS = "body_parts"
-WHEN_STARTED = "when_started"
 
 # Placeholders in questions
 BODY_PART = "BODY_PART"
@@ -22,6 +21,8 @@ class QASystem:
       conf = configs.squad.squad
     else:
       raise Exception("Model type should be 'bert' or 'rnet'.")
+    
+    self.model_type = model_type
     
     if model == None:
       self.model = build_model(conf, download=True)
@@ -51,8 +52,6 @@ class QASystem:
         question_text = self.get_question_text(question_obj)
         answer = self.model([sentence.text], [question_text])[0][0]
         res[question_obj["question_type"]] = answer
-      
-      print(question_text)
 
     return res
 

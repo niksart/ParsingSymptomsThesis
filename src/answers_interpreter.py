@@ -6,20 +6,22 @@ import re
 # QUESTION TYPES
 SYMPTOMS = "SYMPTOMS"
 PROBLEM_BODY_PART = "PROBLEM_BODY_PART"
-WHEN_STARTED = "WHEN_STARTED"
 
 
-class AnswerInterpreter:
+class AnswersInterpreter:
   
   
-  def __init__(self):
-    self.__spt = SentencePOSTagger()  
+  def __init__(self, spt=None):
+    if spt is None:
+      self.__spt = SentencePOSTagger()
+    else:
+      self.__spt = spt
   
   """
   answers is a dictionary built in this way:
     answers['type_question'] = 'answer text...'
   """
-  def get_tokens_given_answers(self, answers):
+  def get_tokens_given_answers(self, answers, filter_unuseful_words=True):
     tokens_symptoms = self.get_tokens_given_text(answers[SYMPTOMS])
     
     tokens_bp = []
@@ -27,10 +29,10 @@ class AnswerInterpreter:
       if self.__is_problem_body_part_key(key):
         id_bp = self.__get_id_body_part_by_key(key)
         bp = BodyPart(id_bp)
-        tokens = self.get_tokens_given_text(answers[key] + " " + bp.names[0])
+        tokens = self.get_tokens_given_text(answers[key] + " " + bp.names[0], filter_unuseful_words)
         tokens_bp.append((bp, tokens))
     
-    return [tokens_symptoms, tokens_bp]
+    return (tokens_symptoms, tokens_bp)
   
   
   """
@@ -41,9 +43,9 @@ class AnswerInterpreter:
   If split_on_conj is True, the original text is split on the English coordinating
   conjunctions
   """
-  def get_tokens_given_text(self, answer_text, split_on_conj=True):
+  def get_tokens_given_text(self, answer_text, filter_unuseful_words=True, split_on_conj=True):
     # preprocess answer text
-    answer_text = self.preprocess_answer_text(answer_text)
+    answer_text = self.preprocess_answer_text(answer_text, filter_unuseful_words)
     
     # split on the conjunctions (and, but, or, ...)
     if split_on_conj:

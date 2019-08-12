@@ -7,26 +7,10 @@ class DatasetLoader:
   
   
   def __init__(self):
-    # find list paths CV
-    # (path, filename)
-    paths_cv = list(map(lambda s: (COM.DATASET_CV_FOLDER + s, os.path.splitext(s)[0]), 
-                        os.listdir(COM.DATASET_CV_FOLDER)))
-    # find list oaths TRAINING
+    # find list paths TESTING
     # (path, filename)
     paths_testing = list(map(lambda s: (COM.DATASET_TRAINING_FOLDER + s, os.path.splitext(s)[0]),
                              os.listdir(COM.DATASET_TRAINING_FOLDER)))
-    
-    self.__sentences_cv = []
-    for (path, filename) in paths_cv:
-      with open(path) as fp:  
-        line = fp.readline()
-        while line:
-          # interpreta XML
-          root = ET.fromstring(line)
-          sentence = list(self.__get_sentence_given_xml_root(root))
-          self.__sentences_cv.append((sentence, filename))
-          # ---
-          line = fp.readline()
     
     self.__sentences_testing = []
     for (path, filename) in paths_testing:
@@ -56,7 +40,7 @@ class DatasetLoader:
          yield ("text", child.tail)
          
   
-  def get_text_given_sentence(self, sentence):
+  def __get_text_given_sentence(self, sentence):
     ret = ""
     
     for fragment in sentence:
@@ -68,16 +52,28 @@ class DatasetLoader:
     return ret
   
   
-  """
-  Get cross validation sentences and namefiles
-  """
-  def get_cv_sentences(self):
-    return self.__sentences_cv
+  def __get_cuis_list_given_sentence(self, sentence):
+    ret = []
+    
+    for fragment in sentence:
+      if fragment[0] == "symptom":
+        ret.append(fragment[1])
+    
+    return ret
   
   
   """
-  Get cross validation sentences and namefiles
+  Returns a list of tuples
+    [("sentence1_text", ["cui1", "cui2"]), (...), ..., (...)]
   """
-  def get_testing_sentences(self):
-    return self.__sentences_testing
+  def get_testing_sentences_and_cuis(self):
+    ret = []
+    
+    for sentence, type_sentence in self.__sentences_testing:
+      sentence_text = self.__get_text_given_sentence(sentence)
+      list_cuis = self.__get_cuis_list_given_sentence(sentence)
+      
+      ret.append((sentence_text, list_cuis))
+    
+    return ret
   

@@ -1,5 +1,5 @@
 import stanfordnlp
-from stemming.porter2 import stem
+from nltk.stem.snowball import SnowballStemmer
 import pandas as pd
 import commons as COM
 import os
@@ -13,8 +13,9 @@ class SentencePOSTagger:
     
     self.nlp = stanfordnlp.Pipeline(models_dir = COM.STANFORD_NLP_RESOURCES_PATH)
     
-    glove_40000_word_list_df = pd.read_csv(COM.CSV_WORD_LIST_GLOVE_40000, header=None)
-    self.__list_glove_words = glove_40000_word_list_df[0].tolist()
+    glove_100000_word_list_df = pd.read_csv(COM.CSV_WORD_LIST_GLOVE_100000, header=None)
+    self.__stemmer = SnowballStemmer("english")
+    self.__list_glove_words = glove_100000_word_list_df[0].tolist()
   
   
   """
@@ -38,11 +39,16 @@ class SentencePOSTagger:
   def filter_unuseful_words(self, 
                             sentence_text,
                             admitted_types = ["NOUN", "ADJ", "CCONJ", "PUNCT", "VERB", "AUX"]):
+    ambiguous_words = ["back"]
+    
+    if sentence_text == "":
+      return ""
+    
     sentence = self.parse_sentence(sentence_text)
     
     res = ""
     for word in sentence.words:
-      if word.upos in admitted_types:
+      if word.upos in admitted_types or word.text in ambiguous_words:
         res += word.text
         if word != sentence.words[-1]:
           res += " "
@@ -55,11 +61,14 @@ class SentencePOSTagger:
   returns a string (the stemmed sentence)
   """
   def stem_sentence(self, sentence_text):
+    if sentence_text == "":
+      return sentence_text
+    
     sentence = self.parse_sentence(sentence_text)
     
     res = ""
     for word in sentence.words:
-      stemmed_word = stem(word.text)
+      stemmed_word = self.__stemmer.stem(word.text)
       
       if stemmed_word in self.__list_glove_words:
         res += stemmed_word

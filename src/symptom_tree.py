@@ -3,7 +3,6 @@ import anytree as at
 import os
 import pandas as pd
 import numpy as np
-from vectorifier import Vectorifier
 from anytree.importer import DictImporter
 from anytree.importer import JsonImporter
 
@@ -28,55 +27,68 @@ class Node(at.node.node.Node):
 class SymptomTree:
   
   """
-  internal_representation: can be "glove"
-  
-  GloVe parameters --
-    number_glove_words: take the first n words from GloVe dictionary (they are ordered by frequency)
-    dimension_glove_vectors: can be 50, 100, 200, 300
+  Pass to it a Vectorifier object
   """
-  
   def __init__(self,
-               internal_representation,
-               number_glove_words = COM.DEFAULT_NUM_IMPORTED_GLOVE_VECTORS,
-               dimension_glove_vectors = COM.POSSIBLE_GLOVE_DIMENSIONS[COM.DEFAULT_GLOVE_DIMENSION]):
-    
-    if internal_representation not in COM.ADMITTED_REPRESENTATIONS:
-      raise Exception("A proper internal representation should be specified.\n"
-                      "Supported representations: " + ", ".join(COM.ADMITTED_REPRESENTATIONS))
+               vectorifier=None):
     
     dict_importer = DictImporter(nodecls=Node)
     importer = JsonImporter(dictimporter=dict_importer)
     self.root = importer.import_(symptom_json)
     
-    self.dimension_glove_vectors = dimension_glove_vectors
-    self.vectorifier = Vectorifier(internal_representation,
-                                   number_glove_words,
-                                   dimension_glove_vectors)
-    
-    # if concept name vectors file not exists, create it
-    # this file contains the glove vectors of the concept names
-    if not os.path.isfile(COM.CSV_ST_CONCEPT_NAMES_GLOVE_PATH + \
-                          str(self.dimension_glove_vectors) + "d.csv"):
-      print("Concept names vector file not found. \nComputing file...")
-      self.__save_csv_concept_name_vectors()
-    
-    self.concept_name_vectors_df = pd.read_csv(COM.CSV_ST_CONCEPT_NAMES_GLOVE_PATH + \
-                                               str(self.dimension_glove_vectors) + "d.csv", 
-                                               header=None)
+    if vectorifier is not None:
+      # normal mode, if it is None is eval mode
+      self.vectorifier = vectorifier
+      self.vector_dimension = vectorifier.d
+      
+      """
+      if concept name vectors file not exists, create it
+      """
+      if vectorifier.internal_representation == "glove":
+        if not os.path.isfile(COM.CSV_ST_CONCEPT_NAMES_GLOVE_PATH + \
+                              str(self.vector_dimension) + "d.csv"):
+          print("Concept names glove vectors file not found. \nComputing file...")
+          self.__save_csv_concept_name_glove_vectors()
+      
+        self.concept_name_vectors_df = pd.read_csv(COM.CSV_ST_CONCEPT_NAMES_GLOVE_PATH + \
+                                                   str(self.vector_dimension) + "d.csv", 
+                                                   header=None)
+      elif vectorifier.internal_representation == "bert":
+        if not os.path.isfile(COM.CSV_ST_CONCEPT_NAMES_BERT_PATH + \
+                              COM.FILENAME_CSV_ST_CONCEPT_NAMES_BERT):
+          print("Concept names bert vectors file not found. \nComputing file...")
+          self.__save_csv_concept_name_bert_vectors()
+      
+        self.concept_name_vectors_df = pd.read_csv(COM.CSV_ST_CONCEPT_NAMES_BERT_PATH + \
+                                                   COM.FILENAME_CSV_ST_CONCEPT_NAMES_BERT, 
+                                                   header=None)
     
     
 
   """
-  Vectors of concept names are precomputed and saved in a csv file.
+  GloVe vectors of concept names are precomputed and saved in a csv file.
   If the file not exists, compute them and save them. 
   """
-  def __save_csv_concept_name_vectors(self):
+  def __save_csv_concept_name_glove_vectors(self):
     df = self.__get_df_concept_names_vectors(self.root)
 
     os.makedirs(COM.CSV_ST_CONCEPT_NAMES_GLOVE_PATH, exist_ok=True)
     
     df.to_csv(COM.CSV_ST_CONCEPT_NAMES_GLOVE_PATH + \
-              str(self.dimension_glove_vectors) + "d.csv", 
+              str(self.vector_dimension) + "d.csv", 
+              index=False, header=False)
+  
+  
+  """
+  Bert vectors of concept names are precomputed and saved in a csv file.
+  If the file not exists, compute them and save them. 
+  """
+  def __save_csv_concept_name_bert_vectors(self):
+    df = self.__get_df_concept_names_vectors(self.root)
+
+    os.makedirs(COM.CSV_ST_CONCEPT_NAMES_BERT_PATH, exist_ok=True)
+    
+    df.to_csv(COM.CSV_ST_CONCEPT_NAMES_BERT_PATH + COM.FILENAME_CSV_ST_CONCEPT_NAMES_BERT, 
               index=False, header=False)
   
   
@@ -132,6 +144,10 @@ class SymptomTree:
                                          body_part=None):
     subsentences = self.vectorifier.get_subsentences_and_vectors(token)
     
+    # there are no vectorizable subsentences
+    if subsentences == []:
+      return {"found": "no"}
+    
     if body_part is None:
       concept_names_vectors = self.concept_name_vectors_df
     else:
@@ -146,9 +162,9 @@ class SymptomTree:
     simil = symptoms_df.iloc[0][2]
     
     if simil > min_similarity:
-      return (cui, simil)
+      return {"found": "yes", "predicted_cui": cui, "similarity": simil}
     else:
-      return None
+      return {"found": "no"}
   
   
   """
@@ -181,7 +197,7 @@ class SymptomTree:
     
     # Matrix that has the vectors of concept names on rows
     # shape of B is #concept_names x #dimensions_inter_repr
-    B = np.array(concept_names.iloc[:, 2:(self.dimension_glove_vectors+2)])
+    B = np.array(concept_names.iloc[:, 2:(self.vector_dimension+2)])
     dictB = {}
     list_concept_names = concept_names[0].tolist()
     list_cuis = concept_names[1].tolist()
@@ -212,6 +228,10 @@ class SymptomTree:
     list_root_nodes = body_part.root_nodes
     root_nodes = list(map(self.__get_node_by_concept_name, list_root_nodes))
     
+    if root_nodes == []:
+      # search in the whole tree
+      root_nodes = [self.__get_node_by_concept_name("symptoms")]
+    
     list_filtered_concept_names = []
     for root_node in root_nodes:
       l = self.__get_concept_names_of_subtree(root_node)
@@ -231,6 +251,12 @@ class SymptomTree:
     return at.find(self.root, filter_=lambda node: node.get_concept_name()==concept_name)
   
   
+  def __get_first_node_by_cui(self, cui):
+    nodes = at.findall(self.root, filter_=lambda node: node.name==cui)
+    if len(nodes) > 0:
+      return nodes[0]
+  
+  
   def __get_concept_names_of_subtree(self, node):
     concept_names = [node.concept_name]
     
@@ -238,6 +264,26 @@ class SymptomTree:
       concept_names += self.__get_concept_names_of_subtree(child)
     
     return concept_names
+  
+  
+  def __get_cuis_of_subtree(self, node):
+    if node is not None:
+      cuis = [node.name]
+      
+      for child in node.children:
+        cuis += self.__get_cuis_of_subtree(child)
+      
+      return cuis
+    else:
+      return ["CUIplaceholder"]
+  
+  
+  def get_cuis_subtree_given_cui_root(self, cui_root):
+    root = self.__get_first_node_by_cui(cui_root)
+    
+    cuis = self.__get_cuis_of_subtree(root)
+    
+    return cuis
   
   
   def render_tree(self, root):
